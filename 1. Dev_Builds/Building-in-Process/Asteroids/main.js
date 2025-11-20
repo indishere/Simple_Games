@@ -1,0 +1,235 @@
+// ================================== Asteroids Game ====================================== //
+
+// -------------------------------- START OF VARIABLES ----------------------------------- //
+
+// Global Variables
+let FPS
+
+let shipX = 200
+let shipY = 200
+
+let rockX = [100, 200, 400, 800, 600]
+let rockY = [400, 800, 200, 600, 100]
+let rockSize = 50
+
+let laserX = [100, 200]
+let laserY = [100, 200]
+let shootDaLaser = false
+
+let cooldownTimer = 15
+
+// Directional
+let right = false
+let left = false
+let dir = 0
+let laserDir = [0, 0]
+
+// Lasers Config
+let laserNum = 2
+let laserTime = [0, 0]
+
+let laserWidth = [10, 10]
+let laserHeight = [30, 30]
+let laserVis = [false,false]
+
+// Speed Logic
+let xSpeed = 0
+let ySpeed = 0
+let speed = 0.1   
+let drag = 0.01
+
+let rockXSpeed = 3
+let rockYSpeed = 4
+let laserSpeed = [15, 15]
+let laserYSpeed= [0, 0]
+let laserXSpeed= [0, 0]
+
+let boost = false
+let boostSpeed = 5
+
+// -------------------------------- START OF FUNCTIONS ----------------------------------- //
+
+function setup() {
+	createCanvas(windowWidth, windowHeight)
+	background(0)
+	angleMode(DEGREES)
+
+	frameRate(60)
+}
+
+function draw() {
+   background(0)
+	keyStuff()
+	utility()
+	
+   drawLaser()
+	moveLaser()
+	
+	moveShip()
+	drawShip()
+	
+	drawRock()
+	moveRock()
+	hitRock()
+	
+	shootLaser()
+}
+
+function keyStuff() {
+  // ------------ Special Personal Controls ------------
+  
+  right = keyIsDown("f");
+  left = keyIsDown("s");
+  boost = keyIsDown("e");
+  shootDaLaser = (keyIsDown(" ")) //&& las != -1);
+	
+  if (keyIsDown("SHIFT")) {
+    right = false;
+    left = false;
+    dir = 0;
+  }
+	
+  // ------------- Global Controls -------------
+  if (keyIsDown(RIGHT_ARROW)) right = true;
+  if (keyIsDown(LEFT_ARROW)) left = true;
+  if (keyIsDown(UP_ARROW)) boost = true;
+  if (keyIsDown(" ")) shootDaLaser = true; //&& las != -1) 
+	
+  if (keyIsDown(DOWN_ARROW)) {
+    right = false;
+    left = false;
+    dir = 0;
+  }
+}
+
+function drawLaser() {
+	// --------- MAKE THE LASER ---------- //
+  for (var i = 0; i < laserNum; i++) {
+
+	if (laserVis[i]) {
+    push()
+    translate(laserX[i], laserY[i])
+	
+	 rotate(laserDir[i])
+	 fill("#FF0000")
+	 rect(-laserWidth[i]/2, -laserHeight[i]/2, laserWidth[i], laserHeight[i])
+	
+	 pop()
+	 }
+  }
+}
+
+function findLaser() {
+	// --------- ACTUALLY FIND IT ---------- // 
+	for (var i = 0; i < laserNum; i++) {
+		if(laserVis[i] == false) {
+			return(i)
+		}
+	}
+	return(-1)
+}
+
+function moveLaser() {
+	// --------- MOVE DA LASER ---------- //
+  for (var i = 0; i < laserNum; i++) {
+	 laserX[i] += laserXSpeed[i]
+	 laserY[i] += laserYSpeed[i]
+
+	 if (laserTime[i] > 0) {
+			laserTime[i] -= 1
+		
+		if (laserTime[i] == 0) {
+				laserVis[i] = false
+		}
+	 }
+  }
+}
+
+function shootLaser() {
+	// --------- SHOOT DA LASER ---------- //
+  if(shootDaLaser) {
+	 let las = findLaser()
+	 if (las != -1) {
+		 laserVis[las] = true
+		 laserTime[las] = 60
+		 laserX[las] = shipX
+		 laserY[las] = shipY
+		 laserDir[las] = dir
+		
+		 laserXSpeed[las] = laserSpeed[las] * sin(laserDir[las])
+		 laserYSpeed[las] = -laserSpeed[las] * cos(laserDir[las])
+	 }
+  }
+} 
+
+function drawShip() {
+	push()
+	translate(shipX, shipY)
+	rotate(dir)
+	fill("#6496C8")
+	triangle(20, 20, -20, 20, 0, -20)
+	fill(200, 50, 50)
+	triangle(5, -10, -5, -10, 0, -20)
+	if (boost) {
+		let wiggle = 0
+		if (frameCount % 10 > 5) wiggle += 5
+		fill(200, 50, 50)
+		triangle(13, 20, -13, 20, 0, 50 + wiggle)
+		fill(150, 150, 50)
+		triangle(8, 20, -8, 20, 0, 35 + wiggle)
+		fill(50, 50, 150)
+		triangle(3, 20, -3, 20, 0, 25 + wiggle)
+	}
+	pop()
+}
+
+function moveShip () {
+	if (right) dir += 5
+	if (left) dir -= 5
+	if (boost) {
+		xSpeed += speed * sin(dir)
+		ySpeed += -speed * cos(dir)
+	} else {
+		xSpeed -= xSpeed * drag
+		ySpeed -= ySpeed * drag
+	}
+	shipX += xSpeed
+	shipY += ySpeed
+	if (shipX < 0) shipX = windowWidth
+	if (shipX > windowWidth) shipX = 0
+	if (shipY < 0) shipY = windowHeight
+	if (shipY > windowHeight) shipY = 0
+	// reset flags so they only respond when pressed again
+	right = false
+	left = false
+}
+
+function drawRock() {
+	fill(100, 120, 88)
+	circle(rockX, rockY, rockSize)
+}
+
+function moveRock() {
+	rockX += rockXSpeed
+	rockY += rockYSpeed
+	if (rockX < 0) {rockX = windowWidth}
+	if (rockX > windowWidth) {rockX = 0}
+	if (rockY < 0) { rockY = windowHeight}
+	if (rockY > windowHeight) {rockY = 0}
+}
+
+function hitRock() {
+	if (collideCircleCircle(shipX,shipY,30,rockX,rockY,rockSize)) {
+		//lives--
+		shipX = 100
+		shipY = 100
+	}
+}
+
+function utility() {
+  FPS = round(frameRate());
+
+  fill(255);
+  textSize(16);
+  text("FPS: " + FPS, 10, 20);
+}
