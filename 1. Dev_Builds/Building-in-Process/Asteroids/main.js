@@ -1,53 +1,60 @@
-// ================================== Asteroids Game ====================================== //
+// ================================== ASTEROIDS: DEBT COLLECTOR EDITION ====================================== //
+// This p5.js game is a asteroid shooter with a twist: managing your cash flow.
+// Green rocks = cash, Red rocks = debt. Don't go bankrupt, man.
 
-// -------------------------------- START OF VARIABLES ----------------------------------- //
+// ------------------------------------ CORE GAME STATE & VARIABLES ------------------------------------ //
 
-// Global
+// -- Global Status --
 let FPS;
-let gameOver = false;
-let bankrupt = false;
+let gameOver = false;    // True if lives run out
+let bankrupt = false;    // True if money drops below the catastrophic limit (-$2000)
 
-// Ship / Gameplay
-let shipX, shipY;
-let dir = 0;
-let xSpeed = 0;
-let ySpeed = 0;
-let speed = 0.15;
-let drag = 0.015;
+// -- Ship & Movement --
+let shipX, shipY;        // Current position
+let dir = 0;             // Ship's rotation direction (degrees)
+let xSpeed = 0;          // Current X velocity
+let ySpeed = 0;          // Current Y velocity
+let speed = 0.15;        // Thrust/acceleration power
+let drag = 0.015;        // How quickly the ship slows down (space friction)
 
-let right = false;
-let left = false;
-let boost = false;
+// -- Input Flags --
+let right = false;       // Right rotation active
+let left = false;        // Left rotation active
+let boost = false;       // Thruster/boost active
 
-let money = 0;
-let lives = 3;
-let iFrames = 100;
+// -- Player Stats --
+let money = 0;           // Cash money earned (or lost)
+let lives = 3;           // Hits remaining
+let iFrames = 100;       // Invulnerability frames after taking damage
 
-// Config
-let rockCount = 5;
-let debtRockCount = 5;
-let laserNum = 5;
+// -- Configuration --
+let rockCount = 5;       // Number of money-earning rocks
+let debtRockCount = 5;   // Number of debt rocks
+let laserNum = 5;        // Maximum number of lasers allowed on screen
 
-let cooldown = 0;
-let cooldownTimer = 10;
+let cooldown = 0;        // Current laser cooldown timer (frames)
+let cooldownTimer = 10;  // Frames required between shots
 
-let debug = false;
+let debug = false;       // Debug mode flag (currently unused, but ready)
 
-// Money rocks
+// ------------------------------------ DATA ARRAYS: GAME OBJECTS ------------------------------------ //
+// Note: Arrays use parallel indexing (e.g., rockX[0] corresponds to rockY[0])
+
+// -- Money Rocks (The green ones) --
 let rockX = [];
 let rockY = [];
 let rockSize = [];
 let rockXSpeed = [];
 let rockYSpeed = [];
 
-// Debt rocks
+// -- Debt Rocks (The red ones) --
 let debtRockX = [];
 let debtRockY = [];
 let debtRockSize = [];
 let debtRockXSpeed = [];
 let debtRockYSpeed = [];
 
-// Lasers
+// -- Lasers (Pew Pew) --
 let laserX = [];
 let laserY = [];
 let laserDir = [];
@@ -56,367 +63,477 @@ let laserXSpeed = [];
 let laserYSpeed = [];
 let laserWidth = [];
 let laserHeight = [];
-let laserVis = [];
-let laserTime = [];
+let laserVis = [];     // Visibility/active state
+let laserTime = [];    // Remaining life (frames)
 
-// -------------------------------- START OF FUNCTIONS ----------------------------------- //
+// ------------------------------------ SETUP & MAIN LOOP (p5.js) ------------------------------------ //
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  angleMode(DEGREES);
-  frameRate(60);
+    // Initializes the canvas, sets angle mode to degrees, and seeds the game objects.
+    createCanvas(windowWidth, windowHeight);
+    angleMode(DEGREES);
+    frameRate(60);
 
-  shipX = windowWidth / 2;
-  shipY = windowHeight / 2;
+    shipX = windowWidth / 2;
+    shipY = windowHeight / 2;
 
-  // Initialize money rocks
-  for (let i = 0; i < rockCount; i++) {
-    rockX.push(random(windowWidth));
-    rockY.push(random(windowHeight));
-    rockSize.push(random(20, 80));
-    rockXSpeed.push(random(-5, 5));
-    rockYSpeed.push(random(-5, 5));
-  }
+    // Initialize money rocks (random positions/speeds)
+    for (let i = 0; i < rockCount; i++) {
+        rockX.push(random(windowWidth));
+        rockY.push(random(windowHeight));
+        rockSize.push(random(20, 80));
+        rockXSpeed.push(random(-5, 5));
+        rockYSpeed.push(random(-5, 5));
+    }
 
-  // Initialize debt rocks
-  for (let i = 0; i < debtRockCount; i++) {
-    debtRockX.push(random(windowWidth));
-    debtRockY.push(random(windowHeight));
-    debtRockSize.push(random(30, 100));
-    debtRockXSpeed.push(random(-7, 7));
-    debtRockYSpeed.push(random(-7, 7));
-  }
+    // Initialize debt rocks (random positions/speeds)
+    for (let i = 0; i < debtRockCount; i++) {
+        debtRockX.push(random(windowWidth));
+        debtRockY.push(random(windowHeight));
+        debtRockSize.push(random(30, 100));
+        debtRockXSpeed.push(random(-7, 7));
+        debtRockYSpeed.push(random(-7, 7));
+    }
 
-  // Initialize lasers
-  for (let i = 0; i < laserNum; i++) {
-    laserX.push(-100);
-    laserY.push(-100);
-    laserDir.push(0);
-    laserSpeed.push(30);
-    laserXSpeed.push(0);
-    laserYSpeed.push(0);
-    laserWidth.push(5);
-    laserHeight.push(20);
-    laserVis.push(false);
-    laserTime.push(0);
-  }
+    // Initialize laser slots (set them off-screen/inactive)
+    for (let i = 0; i < laserNum; i++) {
+        laserX.push(-100);
+        laserY.push(-100);
+        laserDir.push(0);
+        laserSpeed.push(30); // Constant speed for each laser slot
+        laserXSpeed.push(0);
+        laserYSpeed.push(0);
+        laserWidth.push(5);
+        laserHeight.push(20);
+        laserVis.push(false);
+        laserTime.push(0);
+    }
 }
 
 function draw() {
-  background(0);
-  keyStuff();
-  utility();
+    background(0); // Space is black
+    keyStuff();    // Handle user inputs for movement/shooting
+    utility();     // Display FPS
 
-  drawLaser();
-  moveLaser();
-  shootLaser();
+    // Check game state before running the main loop
+    if (!gameOver && !bankrupt) {
+        // -- Game Logic Run Cycle --
+        // Lasers: Draw, Move, Shoot Check
+        drawLaser();
+        moveLaser();
+        shootLaser();
 
-  if (iFrames === 0 || iFrames % 10 < 5) drawShip();
+        // Ship: Draw (with iFrame flicker) and Move
+        // Only draw the ship if iFrames are 0 OR if the flicker condition is met (iFrames % 10 < 5)
+        if (iFrames === 0 || iFrames % 10 < 5) drawShip();
+        moveShip();
 
-  if (!gameOver) {
-    moveShip();
-    drawRock();
-    moveRock();
+        // Rocks: Draw, Move, Collision Check
+        drawRock();
+        moveRock();
+        drawDebtRock();
+        moveDebtRock();
 
-    drawDebtRock();
-    moveDebtRock();
-    hitRock();
-    hitDebtRock();
+        // Collisions: Ship vs Rock/DebtRock, Laser vs Rock/DebtRock
+        hitRock();
+        hitDebtRock();
+        laserHit();
+        laserHitDebt();
 
-    laserHit();
-    laserHitDebt();
-    drawHUD();
-  }
+        // HUD & Timers
+        drawHUD();
+        if (cooldown > 0) cooldown--; // Decrement laser cooldown
+        if (iFrames > 0) iFrames--;   // Decrement invulnerability frames
 
-  if (cooldown > 0) cooldown--;
+    } else {
+        // -- Game Over/Bankrupt Screen --
+        fill(240, 50, 50);
+        textAlign(CENTER);
+        textSize(75);
+        text("GAME OVER!", windowWidth / 2, windowHeight / 2);
 
-  if (gameOver) {
-    fill(200, 50, 50);
-    textAlign(CENTER);
-    textSize(75);
-    text("Game Over!", windowWidth / 2, windowHeight / 2);
-    reset();
-    gameOver = false;
- }
-
-  if (bankrupt) {
-    fill(240, 50, 50);
-    textAlign(CENTER);
-    textSize(75);
-    text("Game Over!", windowWidth / 2, windowHeight / 2);
-    text("You got Bankrupt!", windowWidth / 2, windowHeight / 2 + 120);
-    reset();
-    bankrupt = false;
- }
+        if (bankrupt) {
+            textSize(50);
+            text("You got Bankrupt!", windowWidth / 2, windowHeight / 2 + 80);
+            textSize(30);
+            fill(255);
+            text("Press SPACE to restart", windowWidth / 2, windowHeight / 2 + 150);
+        } else if (gameOver) {
+            textSize(50);
+            text("Score: $" + money, windowWidth / 2, windowHeight / 2 + 80);
+            textSize(30);
+            fill(255);
+            text("Press SPACE to restart", windowWidth / 2, windowHeight / 2 + 150);
+        }
+    }
 }
+
+// ------------------------------------ INPUT HANDLER ------------------------------------ //
 
 function keyStuff() {
+    // This handles continuous input using p5.js keyIsDown()
 
-  // Personal Special Controls
-  right = KeyisDown("f");
-  left = KeyisDown("s");
-  boost = KeyisDown("e");
+    // Key Codes: 70=F (Right), 83=S (Left), 69=E (Boost)
+    if (keyIsDown(70)) right = true;
+    if (keyIsDown(83)) left = true;
+    if (keyIsDown(69)) boost = true;
 
-  if (keyIsDown(SHIFT)) {
-    right = false; left = false; dir = 0;
-  }
-
-  // Global Controls
-  if (keyIsDown(RIGHT_ARROW)) right = true;
-  if (keyIsDown(LEFT_ARROW)) left = true;
-  if (keyIsDown(UP_ARROW)) boost = true;
-
-  if (keyIsDown(DOWN_ARROW)) {
-    right = false; left = false; dir = 0;
-  }
-}
-
-function drawLaser() {
-  for (let i = 0; i < laserNum; i++) {
-    if (laserVis[i]) {
-      push();
-      translate(laserX[i], laserY[i]);
-      rotate(laserDir[i]);
-      noStroke();
-      fill("#FF0000");
-      rect(-laserWidth[i]/2, -laserHeight[i]/2, laserWidth[i], laserHeight[i]);
-      pop();
-    }
-  }
-}
-
-function findLaser() {
-  for (let i = 0; i < laserNum; i++) if (!laserVis[i]) return i;
-  return -1;
-}
-
-function moveLaser() {
-  for (let i = 0; i < laserNum; i++) {
-    laserX[i] += laserXSpeed[i];
-    laserY[i] += laserYSpeed[i];
-
-    if (laserTime[i] > 0) {
-      laserTime[i]--;
-      if (laserTime[i] === 0) laserVis[i] = false;
+    // Shift key/Down Arrow acts as a brake/reset
+    if (keyIsDown(SHIFT)) {
+        right = false; left = false; dir = 0;
     }
 
-    if (laserX[i] < 0) laserX[i] = windowWidth;
-    if (laserX[i] > windowWidth) laserX[i] = 0;
-    if (laserY[i] < 0) laserY[i] = windowHeight;
-    if (laserY[i] > windowHeight) laserY[i] = 0;
-  }
+    // Standard Arrow Keys (Optional controls)
+    if (keyIsDown(RIGHT_ARROW)) right = true;
+    if (keyIsDown(LEFT_ARROW)) left = true;
+    if (keyIsDown(UP_ARROW)) boost = true;
+    if (keyIsDown(DOWN_ARROW)) {
+        right = false; left = false; dir = 0;
+    }
+
+    // Restart game with SPACEBAR (32) if the game is over
+    if ((gameOver || bankrupt) && keyIsDown(32)) {
+        reset();
+        gameOver = false;
+        bankrupt = false;
+    }
 }
 
-function shootLaser() {
-  if (keyIsDown(32) && cooldown === 0) {
-    let las = findLaser();
-    if (las !== -1) {
-      laserVis[las] = true;
-      laserTime[las] = 100;
-      cooldown = cooldownTimer;
-      laserX[las] = shipX;
-      laserY[las] = shipY;
-      laserDir[las] = dir;
-      laserXSpeed[las] = laserSpeed[las] * sin(dir);
-      laserYSpeed[las] = -laserSpeed[las] * cos(dir);
-    }
-  }
-}
+// ------------------------------------ SHIP LOGIC ------------------------------------ //
 
 function drawShip() {
-  push();
-  translate(shipX, shipY);
-  rotate(dir);
-  noStroke();
-  fill("#6496C8");
-  triangle(20, 20, -20, 20, 0, -20);
-  fill(200, 50, 50);
-  triangle(5, -10, -5, -10, 0, -20);
+    // Draws the ship centered on its position and rotated by 'dir'
+    push();
+    translate(shipX, shipY);
+    rotate(dir);
+    noStroke();
 
-  if (boost) {
-    let wiggle = frameCount % 10 > 5 ? 5 : 0;
-    fill(200,50,50); triangle(13,20,-13,20,0,50+wiggle);
-    fill(150,150,50); triangle(8,20,-8,20,0,35+wiggle);
-    fill(50,50,150); triangle(3,20,-3,20,0,25+wiggle);
-  }
+    // Ship Body (Blue)
+    fill("#6496C8");
+    triangle(20, 20, -20, 20, 0, -20);
+    // Ship Nose (Red accent)
+    fill(200, 50, 50);
+    triangle(5, -10, -5, -10, 0, -20);
 
-  pop();
+    // Thruster visual when boosting
+    if (boost) {
+        let wiggle = frameCount % 10 > 5 ? 5 : 0;
+        fill(200, 50, 50); triangle(13, 20, -13, 20, 0, 50 + wiggle);
+        fill(150, 150, 50); triangle(8, 20, -8, 20, 0, 35 + wiggle);
+        fill(50, 50, 150); triangle(3, 20, -3, 20, 0, 25 + wiggle);
+    }
+
+    pop();
 }
 
 function moveShip() {
-  if (right) dir += 5;
-  if (left) dir -= 5;
-  if (boost) {
-    xSpeed += speed * sin(dir);
-    ySpeed += -speed * cos(dir);
-  } else {
-    xSpeed -= xSpeed * drag;
-    ySpeed -= ySpeed * drag;
-  }
+    // Handles rotation based on input flags
+    if (right) dir += 5;
+    if (left) dir -= 5;
 
-  shipX += xSpeed;
-  shipY += ySpeed;
+    // Handles acceleration (thrust) or deceleration (drag)
+    if (boost) {
+        // Accelerate in the direction 'dir' is pointing
+        xSpeed += speed * sin(dir);
+        ySpeed += -speed * cos(dir); // Negative because Y is inverted in p5.js (0 at top)
+    } else {
+        // Apply drag/friction
+        xSpeed -= xSpeed * drag;
+        ySpeed -= ySpeed * drag;
+    }
 
-  if (shipX < 0) shipX = windowWidth;
-  if (shipX > windowWidth) shipX = 0;
-  if (shipY < 0) shipY = windowHeight;
-  if (shipY > windowHeight) shipY = 0;
+    // Apply velocity to position
+    shipX += xSpeed;
+    shipY += ySpeed;
 
-  right = left = false;
+    // Screen wrap: Toroidal space
+    if (shipX < 0) shipX = windowWidth;
+    if (shipX > windowWidth) shipX = 0;
+    if (shipY < 0) shipY = windowHeight;
+    if (shipY > windowHeight) shipY = 0;
 }
 
-// ------------------------------ ROCKS ------------------------------ //
+// ------------------------------------ LASER LOGIC ------------------------------------ //
+
+function drawLaser() {
+    // Draws all active lasers
+    for (let i = 0; i < laserNum; i++) {
+        if (laserVis[i]) {
+            push();
+            translate(laserX[i], laserY[i]);
+            rotate(laserDir[i]);
+            noStroke();
+            fill("#FF0000"); // Red laser
+            rect(-laserWidth[i] / 2, -laserHeight[i] / 2, laserWidth[i], laserHeight[i]);
+            pop();
+        }
+    }
+}
+
+function findLaser() {
+    // Finds the index of the first available (inactive) laser slot
+    for (let i = 0; i < laserNum; i++) if (!laserVis[i]) return i;
+    return -1; // No slot found
+}
+
+function moveLaser() {
+    // Updates position and checks lifetime for all lasers
+    for (let i = 0; i < laserNum; i++) {
+        laserX[i] += laserXSpeed[i];
+        laserY[i] += laserYSpeed[i];
+
+        // Decrement lifetime and deactivate if time runs out
+        if (laserTime[i] > 0) {
+            laserTime[i]--;
+            if (laserTime[i] === 0) laserVis[i] = false;
+        }
+
+        // Screen wrap for lasers
+        if (laserX[i] < 0) laserX[i] = windowWidth;
+        if (laserX[i] > windowWidth) laserX[i] = 0;
+        if (laserY[i] < 0) laserY[i] = windowHeight;
+        if (laserY[i] > windowHeight) laserY[i] = 0;
+    }
+}
+
+function shootLaser() {
+    // Fire laser if SPACEBAR (32) is pressed and cooldown is 0
+    if (keyIsDown(32) && cooldown === 0) {
+        let las = findLaser();
+        if (las !== -1) {
+            laserVis[las] = true;
+            laserTime[las] = 100;      // Set laser lifespan
+            cooldown = cooldownTimer;  // Reset cooldown timer
+
+            // Set initial position, direction, and speed from the ship's state
+            laserX[las] = shipX;
+            laserY[las] = shipY;
+            laserDir[las] = dir;
+            laserXSpeed[las] = laserSpeed[las] * sin(dir);
+            laserYSpeed[las] = -laserSpeed[las] * cos(dir);
+        }
+    }
+}
+
+// ------------------------------------ MONEY ROCK LOGIC ------------------------------------ //
 
 function drawRock() {
-  for (let i = 0; i < rockCount; i++) {
-    fill(100,120,88);
-    circle(rockX[i], rockY[i], rockSize[i]);
-  }
+    // Draws the money-earning rocks (green)
+    for (let i = 0; i < rockCount; i++) {
+        fill(100, 120, 88); // Greenish/Earth tone
+        circle(rockX[i], rockY[i], rockSize[i]);
+    }
 }
 
 function rockRegen(i) {
-  if (rockSize[i] < 10) {
-    rockSize[i] = round(random(3,10)*10);
-    rockX[i] = random(windowWidth);
-    rockY[i] = random(windowHeight);
-    rockXSpeed[i] = round(random(-5,5));
-    rockYSpeed[i] = round(random(-5,5));
-  }
+    // Respawns a rock if its size drops below the minimum threshold (10)
+    if (rockSize[i] < 10) {
+        rockSize[i] = round(random(3, 10) * 10);
+        rockX[i] = random(windowWidth);
+        rockY[i] = random(windowHeight);
+        rockXSpeed[i] = round(random(-5, 5));
+        rockYSpeed[i] = round(random(-5, 5));
+    }
 }
 
 function moveRock() {
-  for (let i = 0; i < rockCount; i++) {
-    rockX[i] += rockXSpeed[i];
-    rockY[i] += rockYSpeed[i];
-    if (rockX[i] < 0){ rockX[i]=windowWidth; rockRegen(i); }
-    if (rockX[i] > windowWidth){ rockX[i]=0; rockRegen(i); }
-    if (rockY[i] < 0){ rockY[i]=windowHeight; rockRegen(i); }
-    if (rockY[i] > windowHeight){ rockY[i]=0; rockRegen(i); }
-  }
+    // Updates rock positions and handles screen wrap/regeneration
+    for (let i = 0; i < rockCount; i++) {
+        rockX[i] += rockXSpeed[i];
+        rockY[i] += rockYSpeed[i];
+        // Screen wrap with regeneration check
+        if (rockX[i] < 0) { rockX[i] = windowWidth; rockRegen(i); }
+        if (rockX[i] > windowWidth) { rockX[i] = 0; rockRegen(i); }
+        if (rockY[i] < 0) { rockY[i] = windowHeight; rockRegen(i); }
+        if (rockY[i] > windowHeight) { rockY[i] = 0; rockRegen(i); }
+    }
 }
 
 function hitRock() {
-  if (iFrames === 0) {
-    for (let i = 0; i < rockCount; i++) {
-      if (rockSize[i] > 10) {
-        let dx = shipX - rockX[i];
-        let dy = shipY - rockY[i];
-        if (sqrt(dx*dx + dy*dy) < (30+rockSize[i])/2) {
-          lives--;
-          if (lives < 1 && !gameOver) gameOver = 100;
-          iFrames = 100;
-          xSpeed = -xSpeed; ySpeed = -ySpeed;
-          shipX = windowWidth/2; shipY = windowHeight/2;
+    // Checks for collision between ship and money rock (damages ship)
+    if (iFrames === 0) { // Only check if ship is not invincible
+        for (let i = 0; i < rockCount; i++) {
+            if (rockSize[i] > 10) {
+                // Check distance using p5.js dist()
+                let distance = dist(shipX, shipY, rockX[i], rockY[i]);
+                let collisionRadius = (30 + rockSize[i]) / 2;
+
+                if (distance < collisionRadius) {
+                    // Collision: Lose a life, trigger iFrames, reset position
+                    lives--;
+                    if (lives < 1 && !gameOver) gameOver = true;
+                    iFrames = 100;
+                    xSpeed = -xSpeed; ySpeed = -ySpeed; // Bounce effect
+                    shipX = windowWidth / 2; shipY = windowHeight / 2;
+                }
+            }
         }
-      }
     }
-  }
-  if (iFrames > 0) iFrames--;
 }
 
 function laserHit() {
-  for (let i = 0; i < laserNum; i++) {
-    if (laserVis[i]) {
-      for (let j = 0; j < rockCount; j++) {
-        if (rockSize[j] > 0) {
-          let dx = laserX[i]-rockX[j];
-          let dy = laserY[i]-rockY[j];
-          if (sqrt(dx*dx+dy*dy)<(10+rockSize[j])/2) {
-            laserVis[i]=false;
-            rockSize[j]-=10;
-            money+=floor(random(5,100));
-            rockRegen(j);
-          }
+    // Checks for collision between laser and money rock (earns money, damages rock)
+    for (let i = 0; i < laserNum; i++) {
+        if (laserVis[i]) {
+            for (let j = 0; j < rockCount; j++) {
+                if (rockSize[j] > 0) {
+                    let distance = dist(laserX[i], laserY[i], rockX[j], rockY[j]);
+                    let hitRadius = (10 + rockSize[j]) / 2;
+
+                    if (distance < hitRadius) {
+                        laserVis[i] = false;  // Destroy laser
+                        rockSize[j] -= 10;    // Chip the rock
+                        money += floor(random(5, 100)); // Get cash
+                        rockRegen(j);         // Check if rock needs to respawn
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 
-// ------------------------------ DEBT ROCKS ------------------------------ //
+// ------------------------------------ DEBT ROCK LOGIC ------------------------------------ //
 
 function drawDebtRock() {
-  for (let i = 0; i < debtRockCount; i++) {
-    fill(255,60,48);
-    circle(debtRockX[i], debtRockY[i], debtRockSize[i]);
-  }
+    // Draws the debt rocks (red, alarm color)
+    for (let i = 0; i < debtRockCount; i++) {
+        fill(255, 60, 48);
+        circle(debtRockX[i], debtRockY[i], debtRockSize[i]);
+    }
 }
 
 function debtRockRegen(i) {
-  if (debtRockSize[i]<10) {
-    debtRockSize[i]=round(random(3,10)*10);
-    debtRockX[i]=random(windowWidth);
-    debtRockY[i]=random(windowHeight);
-  }
+    // Respawns a debt rock if its size drops below the minimum threshold (10)
+    if (debtRockSize[i] < 10) {
+        debtRockSize[i] = round(random(3, 10) * 10);
+        debtRockX[i] = random(windowWidth);
+        debtRockY[i] = random(windowHeight);
+        debtRockXSpeed[i] = random(-7, 7);
+        debtRockYSpeed[i] = random(-7, 7);
+    }
 }
 
 function moveDebtRock() {
-  for (let i = 0; i < debtRockCount; i++) {
-    debtRockX[i]+=debtRockXSpeed[i];
-    debtRockY[i]+=debtRockYSpeed[i];
-    if (debtRockX[i]<0){debtRockX[i]=windowWidth; debtRockRegen(i);}
-    if (debtRockX[i]>windowWidth){debtRockX[i]=0; debtRockRegen(i);}
-    if (debtRockY[i]<0){debtRockY[i]=windowHeight; debtRockRegen(i);}
-    if (debtRockY[i]>windowHeight){debtRockY[i]=0; debtRockRegen(i);}
-  }
+    // Updates debt rock positions and handles screen wrap/regeneration
+    for (let i = 0; i < debtRockCount; i++) {
+        debtRockX[i] += debtRockXSpeed[i];
+        debtRockY[i] += debtRockYSpeed[i];
+        // Screen wrap with regeneration check
+        if (debtRockX[i] < 0) { debtRockX[i] = windowWidth; debtRockRegen(i); }
+        if (debtRockX[i] > windowWidth) { debtRockX[i] = 0; debtRockRegen(i); }
+        if (debtRockY[i] < 0) { debtRockY[i] = windowHeight; debtRockRegen(i); }
+        if (debtRockY[i] > windowHeight) { debtRockY[i] = 0; debtRockRegen(i); }
+    }
 }
 
 function laserHitDebt() {
-  for (let i = 0; i < laserNum; i++) {
-    if (laserVis[i]) {
-      for (let j = 0; j < debtRockCount; j++) {
-        if (debtRockSize[j]>0){
-          let dx = laserX[i]-debtRockX[j];
-          let dy = laserY[i]-debtRockY[j];
-          if (sqrt(dx*dx+dy*dy)<(10+debtRockSize[j])/2){
-            laserVis[i]=false;
-            debtRockSize[j]-=10;
-            money+=floor(random(5,100));
-            debtRockRegen(j);
-          }
+    // Checks for collision between laser and debt rock (still earns money, damages rock)
+    for (let i = 0; i < laserNum; i++) {
+        if (laserVis[i]) {
+            for (let j = 0; j < debtRockCount; j++) {
+                if (debtRockSize[j] > 0) {
+                    let distance = dist(laserX[i], laserY[i], debtRockX[j], debtRockY[j]);
+                    let hitRadius = (10 + debtRockSize[j]) / 2;
+
+                    if (distance < hitRadius) {
+                        laserVis[i] = false;
+                        debtRockSize[j] -= 10;
+                        money += floor(random(5, 100)); // Get cash money for cleaning up debt too
+                        debtRockRegen(j);
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 
 function hitDebtRock() {
-  for (let i = 0; i < debtRockCount; i++) {
-    if (debtRockSize[i] > 10){
-      let dx = shipX-debtRockX[i];
-      let dy = shipY-debtRockY[i];
-      if (sqrt(dx*dx+dy*dy)<(30+debtRockSize[i])/2){
-        money -= 100;
-        if(money<-2000 && bankrupt===0) bankrupt=100;
-        iFrames=100;
-        xSpeed=-xSpeed; ySpeed=-ySpeed;
-        shipX=windowWidth/2; shipY=windowHeight/2;
-      }
+    // Checks for collision between ship and debt rock (loses money, no life lost)
+    for (let i = 0; i < debtRockCount; i++) {
+        if (debtRockSize[i] > 10) {
+            let distance = dist(shipX, shipY, debtRockX[i], debtRockY[i]);
+            let collisionRadius = (30 + debtRockSize[i]) / 2;
+
+            if (distance < collisionRadius) {
+                // Collision: Lose $100 immediately
+                money -= 100;
+                // Check for bankruptcy (Debt limit is -$2000)
+                if (money < -2500 && !bankrupt) bankrupt = true;
+
+                iFrames = 100; // Still get a momentary shield
+                xSpeed = -xSpeed; ySpeed = -ySpeed;
+                shipX = windowWidth / 2; shipY = windowHeight / 2;
+            }
+        }
     }
-  }
 }
 
+// ------------------------------------ GAME UTILITY ------------------------------------ //
+
 function reset() {
-  lives = 3; iFrames=0; xSpeed=ySpeed=0; shipX=windowWidth/2; shipY=windowHeight/2; money=0;
-  for(let i=0;i<laserNum;i++){laserVis[i]=false; laserX[i]=-100; laserY[i]=-100; laserTime[i]=0;}
-  for(let i=0;i<rockCount;i++){rockSize[i]=round(random(3,10)*10); rockX[i]=random(windowWidth); rockY[i]=random(windowHeight);}
-  for(let i=0;i<debtRockCount;i++){debtRockSize[i]=round(random(3,10)*10); debtRockX[i]=random(windowWidth); debtRockY[i]=random(windowHeight);}
+    // Resets the entire game state for a new run
+    lives = 3;
+    iFrames = 0;
+    xSpeed = ySpeed = 0;
+    shipX = windowWidth / 2;
+    shipY = windowHeight / 2;
+    money = 0;
+
+    // Reset all lasers
+    for (let i = 0; i < laserNum; i++) {
+        laserVis[i] = false;
+        laserX[i] = -100;
+        laserY[i] = -100;
+        laserTime[i] = 0;
+    }
+
+    // Reset money rocks
+    for (let i = 0; i < rockCount; i++) {
+        rockSize[i] = round(random(3, 10) * 10);
+        rockX[i] = random(windowWidth);
+        rockY[i] = random(windowHeight);
+        rockXSpeed[i] = random(-5, 5);
+        rockYSpeed[i] = random(-5, 5);
+    }
+
+    // Reset debt rocks
+    for (let i = 0; i < debtRockCount; i++) {
+        debtRockSize[i] = round(random(3, 10) * 10);
+        debtRockX[i] = random(windowWidth);
+        debtRockY[i] = random(windowHeight);
+        debtRockXSpeed[i] = random(-7, 7);
+        debtRockYSpeed[i] = random(-7, 7);
+    }
 }
 
 function drawHUD() {
-  for (let i=0;i<lives;i++){
-    push(); translate(30+(i*40),30); scale(0.6);
-    fill(100,150,200); triangle(20,20,-20,20,0,-20);
-    fill(255,0,0); triangle(5,-10,-5,-10,0,-20);
-    pop();
-  }
-  fill(255); textSize(20); textAlign(CENTER); text("money: "+money,windowWidth/2,40);
-  textAlign(LEFT); text("CD: "+cooldown,10,50);
+    // Draws the lives count (mini ships)
+    for (let i = 0; i < lives; i++) {
+        push();
+        translate(30 + (i * 40), 30);
+        scale(0.6);
+        fill(100, 150, 200);
+        triangle(20, 20, -20, 20, 0, -20);
+        fill(255, 0, 0);
+        triangle(5, -10, -5, -10, 0, -20);
+        pop();
+    }
+    // Displays the current money in the center
+    fill(255);
+    textSize(20);
+    textAlign(CENTER);
+    text("money: " + money, windowWidth / 2, 40);
+    // Displays the laser cooldown
+    textAlign(LEFT);
+    text("CD: " + cooldown, 10, 50);
 }
 
-function utility(){
-  FPS=round(frameRate());
-  fill(255); textSize(16); text("FPS: "+FPS,10,20);
+function utility() {
+    // Shows the current Frames Per Second (FPS)
+    FPS = round(frameRate());
+    fill(255);
+    textSize(16);
+    text("FPS: " + FPS, 10, 20);
 }
 
-// ================================== END of Asteroids Game ====================================== //
+// ================================== END of Asteroids Game Logic ====================================== //
