@@ -7,7 +7,8 @@
 // -- Global Status --
 let FPS;
 let gameOver = false;    // True if lives run out
-let bankrupt = false;    // True if money drops below the catastrophic limit (-$2000)
+let bankrupt = false;    // True if money drops below the catastrophic limit (-$2500)
+let wonTheGame = false; // (Currently unused, but ready for future expansion)
 
 // -- Ship & Movement --
 let shipX, shipY;        // Current position
@@ -23,7 +24,7 @@ let left = false;        // Left rotation active
 let boost = false;       // Thruster/boost active
 
 // -- Player Stats --
-let money = 0;           // Cash money earned (or lost)
+let money = 2500;           // Cash money earned (or lost)
 let lives = 3;           // Hits remaining
 let iFrames = 100;       // Invulnerability frames after taking damage
 
@@ -72,7 +73,7 @@ function setup() {
     // Initializes the canvas, sets angle mode to degrees, and seeds the game objects.
     createCanvas(windowWidth, windowHeight);
     angleMode(DEGREES);
-    frameRate(60);
+    frameRate(144);
 
     shipX = windowWidth / 2;
     shipY = windowHeight / 2;
