@@ -1,433 +1,354 @@
-/*
-  Asteroids: Debt Collector Edition
-  Simple, production-ready p5.js single-file implementation.
+// ================================== Asteroids Game ====================================== //
 
-  Usage:
-    1) Include p5.js in your HTML (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.5.0/p5.min.js)
-    2) Drop this file in the same folder and include it after p5.js
-    3) Keys: A/D or Left/Right to rotate, W or Up to boost, SPACE to shoot, R to restart
+// -------------------------------- START OF VARIABLES ----------------------------------- //
 
-  Notes:
-    - Uses simple classes (Ship, Rock, Laser) instead of parallel arrays.
-    - Clear config object for tunable values.
-    - Prevents accidental restart while holding shoot key.
-    - Minimal and readable; easy to extend.
-*/
+// Global Variables
+let FPS
 
-// ------------------------- CONFIG -------------------------
-const CFG = {
-  canvasPadding: 0,
-  fps: 144,
+let shipX = 200
+let shipY = 200
 
-  ship: {
-    rotSpeed: 4,       // degrees per frame
-    thrust: 0.16,
-    drag: 0.015,
-    radius: 18
-  },
+// Rocks
+let rockX = [100, 200, 400, 800, 600]
+let rockY = [400, 800, 200, 600, 100]
+let rockSize = [50, 30, 80, 70, 20]
+let rockXSpeed = [3, -1, 5, -4, 2]
+let rockYSpeed = [4, 2, -3, 5, 3]
+let rockCount = 5
 
-  laser: {
-    max: 6,
-    speed: 28,
-    life: 90,          // frames
-    cooldown: 10       // frames
-  },
+// Lasers 
+let laserNum = 5
+let laserX = [-100, -200, -300, -400, -500]
+let laserY = [-100, -200, -300, -400, -500]
+let laserDir = [0, 0, 0, 0, 0]
+let laserSpeed = [15, 15, 15, 15, 15]
+let laserXSpeed = [0, 0, 0, 0, 0]
+let laserYSpeed = [0, 0, 0, 0, 0]
+let laserWidth = [10, 10, 10, 10, 10]
+let laserHeight = [30, 30, 30, 30, 30]
+let laserVis = [false, false, false, false, false]
+let laserTime = [0, 0, 0, 0, 0]
 
-  rocks: {
-    moneyCount: 6,
-    debtCount: 6,
-    sizeMin: 20,
-    sizeMax: 80,
-    debtSizeMin: 30,
-    debtSizeMax: 100,
-    speedMax: 5,
-    debtSpeedMax: 6,
-    chipAmount: 12
-  },
+// Directional
+let right = false
+let left = false
+let dir = 0
 
-  gameplay: {
-    startMoney: 2500,
-    bankruptThreshold: -2500,
-    debtCollisionLoss: 100,
-    iFrames: 90,
-    startLives: 3
-  }
-};
+// Speed Logic
+let xSpeed = 0
+let ySpeed = 0
+let speed = 0.1
+let drag = 0.01
 
-// ------------------------- UTIL -------------------------
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+let boost = false
+let boostSpeed = 5
+let debug = false
 
-// ------------------------- CLASSES -------------------------
-class Ship {
-  constructor(x, y) {
-    this.x = x; this.y = y;
-    this.vx = 0; this.vy = 0;
-    this.dir = -90; // pointing up (-90 degrees with p5 default)
-    this.iFrames = 0;
-  }
+// Gameplay
+let score = 0
+let lives = 3
+let iFrames = 0
+let gameOver = 0
 
-  reset(x, y) {
-    this.x = x; this.y = y; this.vx = this.vy = 0; this.dir = -90; this.iFrames = 0;
-  }
+// cooldown
+let cooldownTimer = 15
+let cooldown = 0
 
-  update(input) {
-    // rotation
-    if (input.left) this.dir -= CFG.ship.rotSpeed;
-    if (input.right) this.dir += CFG.ship.rotSpeed;
-
-    // caching trig
-    const s = sin(this.dir);
-    const c = cos(this.dir);
-
-    // thrust
-    if (input.boost) {
-      this.vx += CFG.ship.thrust * c; // note: p5 uses degrees, and cos/sin consistent here
-      this.vy += CFG.ship.thrust * s;
-    } else {
-      // apply drag
-      this.vx -= this.vx * CFG.ship.drag;
-      this.vy -= this.vy * CFG.ship.drag;
-    }
-
-    // apply position
-    this.x += this.vx;
-    this.y += this.vy;
-
-    // screen wrap
-    if (this.x < 0) this.x = width;
-    if (this.x > width) this.x = 0;
-    if (this.y < 0) this.y = height;
-    if (this.y > height) this.y = 0;
-
-    if (this.iFrames > 0) this.iFrames--;
-  }
-
-  draw(input) {
-    push();
-    translate(this.x, this.y);
-    rotate(this.dir + 90); // rotate triangle so it points along dir
-    noStroke();
-
-    // flicker when invulnerable
-    if (this.iFrames === 0 || (this.iFrames % 10 < 5)) {
-      fill(100, 150, 200);
-      triangle(0, -CFG.ship.radius, -CFG.ship.radius, CFG.ship.radius, CFG.ship.radius, CFG.ship.radius);
-      fill(200, 50, 50);
-      triangle(0, -CFG.ship.radius/2, -CFG.ship.radius/6, 0, CFG.ship.radius/6, 0);
-    }
-
-    // thruster
-    if (input.boost) {
-      fill(255, 165, 0, 200);
-      triangle(-6, CFG.ship.radius, 6, CFG.ship.radius, 0, CFG.ship.radius + random(12, 22));
-    }
-
-    pop();
-  }
-
-  getRadius() { return CFG.ship.radius; }
-}
-
-class Laser {
-  constructor(x, y, dir) {
-    this.x = x; this.y = y;
-    this.dir = dir;
-    this.vx = CFG.laser.speed * cos(dir);
-    this.vy = CFG.laser.speed * sin(dir);
-    this.life = CFG.laser.life;
-    this.active = true;
-  }
-
-  update() {
-    this.x += this.vx; this.y += this.vy;
-    this.life--;
-    if (this.life <= 0) this.active = false;
-
-    if (this.x < 0) this.x = width;
-    if (this.x > width) this.x = 0;
-    if (this.y < 0) this.y = height;
-    if (this.y > height) this.y = 0;
-  }
-
-  draw() {
-    if (!this.active) return;
-    push();
-    translate(this.x, this.y);
-    rotate(this.dir + 90);
-    noStroke();
-    rectMode(CENTER);
-    rect(0, 0, 4, 14);
-    pop();
-  }
-}
-
-class Rock {
-  constructor(x, y, size, vx, vy, isDebt = false) {
-    this.x = x; this.y = y;
-    this.size = size;
-    this.vx = vx; this.vy = vy;
-    this.isDebt = isDebt;
-  }
-
-  update() {
-    this.x += this.vx; this.y += this.vy;
-    if (this.x < 0) this.x = width;
-    if (this.x > width) this.x = 0;
-    if (this.y < 0) this.y = height;
-    if (this.y > height) this.y = 0;
-  }
-
-  draw() {
-    noStroke();
-    if (this.isDebt) fill(255, 60, 48);
-    else fill(100, 150, 100);
-    circle(this.x, this.y, this.size);
-  }
-
-  getRadius() { return this.size / 2; }
-}
-
-// ------------------------- GAME -------------------------
-class Game {
-  constructor() {
-    this.ship = null;
-    this.rocks = [];
-    this.lasers = [];
-
-    this.money = CFG.gameplay.startMoney;
-    this.lives = CFG.gameplay.startLives;
-
-    this.cooldown = 0;
-    this.input = { left: false, right: false, boost: false, shoot: false };
-
-    this.gameOver = false;
-    this.bankrupt = false;
-
-    this.shootHeld = false; // prevents automatic continuous registration when releasing death screen
-  }
-
-  start() {
-    this.ship = new Ship(width/2, height/2);
-    this.rocks = [];
-    this.lasers = [];
-    this.money = CFG.gameplay.startMoney;
-    this.lives = CFG.gameplay.startLives;
-    this.cooldown = 0;
-    this.gameOver = false;
-    this.bankrupt = false;
-
-    // populate rocks
-    for (let i = 0; i < CFG.rocks.moneyCount; i++) {
-      this.rocks.push(this.randomRock(false));
-    }
-    for (let i = 0; i < CFG.rocks.debtCount; i++) {
-      this.rocks.push(this.randomRock(true));
-    }
-  }
-
-  randomRock(isDebt) {
-    const smin = isDebt ? CFG.rocks.debtSizeMin : CFG.rocks.sizeMin;
-    const smax = isDebt ? CFG.rocks.debtSizeMax : CFG.rocks.sizeMax;
-    const vmax = isDebt ? CFG.rocks.debtSpeedMax : CFG.rocks.speedMax;
-    const size = random(smin, smax);
-    const vx = random(-vmax, vmax);
-    const vy = random(-vmax, vmax);
-    return new Rock(random(width), random(height), size, vx, vy, isDebt);
-  }
-
-  update() {
-    if (this.gameOver || this.bankrupt) return;
-
-    // Ship update
-    this.ship.update(this.input);
-
-    // Lasers update (and prune inactive)
-    for (let l of this.lasers) l.update();
-    this.lasers = this.lasers.filter(l => l.active);
-
-    // Rocks update
-    for (let r of this.rocks) r.update();
-
-    // Collisions
-    this.handleCollisions();
-
-    // cooldown tick
-    if (this.cooldown > 0) this.cooldown--;
-  }
-
-  draw() {
-    background(10);
-
-    // HUD
-    this.drawHUD();
-
-    // draw rocks
-    for (let r of this.rocks) r.draw();
-
-    // draw lasers
-    for (let l of this.lasers) l.draw();
-
-    // ship draw
-    this.ship.draw(this.input);
-
-    // end screen
-    if (this.gameOver || this.bankrupt) this.drawEndScreen();
-  }
-
-  drawHUD() {
-    fill(255);
-    textSize(16);
-    textAlign(LEFT);
-    text(`Money: $${this.money}`, 10, 20);
-    text(`Lives: ${this.lives}`, 10, 40);
-    text(`Lasers: ${this.lasers.length}/${CFG.laser.max}`, 10, 60);
-    text(`CD: ${this.cooldown}`, 10, 80);
-    textAlign(RIGHT);
-    text(`FPS: ${round(frameRate())}`, width - 10, 20);
-  }
-
-  drawEndScreen() {
-    push();
-    textAlign(CENTER);
-    textSize(56);
-    fill(240, 50, 50);
-    text('GAME OVER', width/2, height/2 - 40);
-    textSize(22);
-    fill(255);
-    if (this.bankrupt) text('You went bankrupt', width/2, height/2 + 10);
-    else text(`Out of lives. Money: $${this.money}`, width/2, height/2 + 10);
-    textSize(18);
-    text('Press R to restart', width/2, height/2 + 50);
-    pop();
-  }
-
-  handleCollisions() {
-    // 1) Laser -> Rock
-    for (let i = this.lasers.length - 1; i >= 0; i--) {
-      const L = this.lasers[i];
-      for (let j = this.rocks.length - 1; j >= 0; j--) {
-        const R = this.rocks[j];
-        const d = dist(L.x, L.y, R.x, R.y);
-        if (d < R.getRadius() + 6) {
-          // hit
-          L.active = false;
-          R.size -= CFG.rocks.chipAmount;
-          // Add money whether it's debt or money rock (you "collect")
-          this.money += floor(random(5, 100));
-          if (R.size <= 10) {
-            // replace with a fresh rock
-            this.rocks[j] = this.randomRock(R.isDebt);
-          }
-          break; // laser consumed
-        }
-      }
-    }
-
-    // 2) Ship -> Rock
-    if (this.ship.iFrames === 0) {
-      for (let i = this.rocks.length - 1; i >= 0; i--) {
-        const R = this.rocks[i];
-        const d = dist(this.ship.x, this.ship.y, R.x, R.y);
-        if (d < R.getRadius() + this.ship.getRadius()) {
-          if (R.isDebt) {
-            this.money -= CFG.gameplay.debtCollisionLoss;
-            if (this.money < CFG.gameplay.bankruptThreshold) {
-              this.bankrupt = true;
-            }
-          } else {
-            this.lives--;
-            if (this.lives <= 0) this.gameOver = true;
-          }
-
-          // hit reaction
-          this.ship.iFrames = CFG.gameplay.iFrames;
-          this.ship.vx *= -0.5; this.ship.vy *= -0.5;
-          this.ship.x = width/2; this.ship.y = height/2;
-
-          // if rock was small, respawn
-          R.size -= CFG.rocks.chipAmount;
-          if (R.size <= 10) this.rocks[i] = this.randomRock(R.isDebt);
-        }
-      }
-    }
-  }
-
-  shoot() {
-    if (this.cooldown > 0) return;
-    if (this.lasers.length >= CFG.laser.max) return;
-
-    this.lasers.push(new Laser(this.ship.x, this.ship.y, this.ship.dir));
-    this.cooldown = CFG.laser.cooldown;
-  }
-
-  restart() {
-    this.start();
-  }
-}
-
-// ------------------------- GLOBALS -------------------------
-let game;
-let keys = {};
+// -------------------------------- START OF FUNCTIONS ----------------------------------- //
 
 function setup() {
-  createCanvas(windowWidth - CFG.canvasPadding, windowHeight - CFG.canvasPadding);
-  angleMode(DEGREES);
-  frameRate(CFG.fps);
-  rectMode(CENTER);
-
-  game = new Game();
-  game.start();
+  createCanvas(windowWidth, windowHeight)
+  background(0)
+  angleMode(DEGREES)
+  frameRate(60)
 }
 
 function draw() {
-  // translate(0.5, 0.5); // avoid subpixel artifacting if needed
-  // map input to game
-  game.input.left = keys['ArrowLeft'] || keys['a'];
-  game.input.right = keys['ArrowRight'] || keys['d'];
-  game.input.boost = keys['ArrowUp'] || keys['w'];
+  background(0)
+  keyStuff()
+  utility()
 
-  // shoot logic: allow holding, but prevent accidental restart by gating shootHeld
-  if ((keys[' '] || keys['Space']) && !game.shootHeld) {
-    if (!game.gameOver && !game.bankrupt) game.shoot();
-    game.shootHeld = true;
-  }
-  if (!keys[' '] && !keys['Space']) game.shootHeld = false;
+  drawLaser()
+  moveLaser()
 
-  game.update();
-  game.draw();
-}
+  shootLaser()
 
-function windowResized() {
-  resizeCanvas(windowWidth - CFG.canvasPadding, windowHeight - CFG.canvasPadding);
-}
-
-// key handling
-function keyPressed() {
-  keys[key] = true;
-
-  // Prevent default page scroll for space/arrow keys
-  if (key === ' ' || keyCode === UP_ARROW || keyCode === DOWN_ARROW || keyCode === LEFT_ARROW || keyCode === RIGHT_ARROW) {
-    return false;
+  if (iFrames == 0 || iFrames % 10 < 5) {
+    drawShip()
   }
 
-  // Restart with R
-  if ((key === 'r' || key === 'R')) {
-    game.restart();
+  if (gameOver == 0) {
+    moveShip()
+    drawRock()
+    moveRock()
+    hitRock()
+    laserHit()
+    drawHUD()
+  }
+
+  if (cooldown > 0) cooldown--
+
+  if (gameOver > 0) {
+    fill(200, 50, 50)
+    textAlign(CENTER)
+    textSize(75)
+    text("Game Over!", windowWidth / 2, windowHeight / 2)
+    gameOver--
+    if (gameOver == 0) {
+      reset()
+    }
   }
 }
 
-function keyReleased() {
-  keys[key] = false;
+function keyStuff() {
+  right = keyIsDown(70) || keyIsDown(RIGHT_ARROW)
+  left = keyIsDown(83) || keyIsDown(LEFT_ARROW)
+  boost = keyIsDown(69) || keyIsDown(UP_ARROW)
+
+  if (keyIsDown(16)) {
+    right = false
+    left = false
+    dir = 0
+  }
+  if (keyIsDown(DOWN_ARROW)) {
+    right = false
+    left = false
+    dir = 0
+  }
 }
 
-// ensure graceful text fallback for older p5
-window.addEventListener('keydown', (e) => {
-  // map standardized values onto our keys map
-  const k = e.key.length === 1 ? e.key : (e.code === 'Space' ? ' ' : e.key);
-  keys[k] = true;
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-});
-window.addEventListener('keyup', (e) => {
-  const k = e.key.length === 1 ? e.key : (e.code === 'Space' ? ' ' : e.key);
-  keys[k] = false;
-});
+function drawLaser() {
+  for (let i = 0; i < laserNum; i++) {
+    if (laserVis[i]) {
+      push()
+      translate(laserX[i], laserY[i])
+      rotate(laserDir[i])
+      noStroke()
+      fill(255, 0, 0)
+      rect(-laserWidth[i] / 2, -laserHeight[i] / 2, laserWidth[i], laserHeight[i])
+      pop()
+    }
+  }
+}
+
+function findLaser() {
+  for (let i = 0; i < laserNum; i++) {
+    if (laserVis[i] == false) {
+      return i
+    }
+  }
+  return -1
+}
+
+function moveLaser() {
+  for (let i = 0; i < laserNum; i++) {
+    laserX[i] += laserXSpeed[i]
+    laserY[i] += laserYSpeed[i]
+
+    if (laserTime[i] > 0) {
+      laserTime[i] -= 1
+      if (laserTime[i] == 0) {
+        laserVis[i] = false
+      }
+    }
+
+    if (laserX[i] < 0) laserX[i] = windowWidth
+    if (laserX[i] > windowWidth) laserX[i] = 0
+    if (laserY[i] < 0) laserY[i] = windowHeight
+    if (laserY[i] > windowHeight) laserY[i] = 0
+  }
+}
+
+function shootLaser() {
+  if (keyIsDown(32) && cooldown == 0) {
+    let las = findLaser()
+    if (las != -1) {
+      laserVis[las] = true
+      laserTime[las] = 100
+      cooldown = cooldownTimer
+      laserX[las] = shipX
+      laserY[las] = shipY
+      laserDir[las] = dir
+
+      laserXSpeed[las] = laserSpeed[las] * sin(laserDir[las])
+      laserYSpeed[las] = -laserSpeed[las] * cos(laserDir[las])
+    }
+  }
+}
+
+function drawShip() {
+  push()
+  translate(shipX, shipY)
+  rotate(dir)
+  noStroke()
+  fill("#6496C8")
+  triangle(20, 20, -20, 20, 0, -20)
+  fill(200, 50, 50)
+  triangle(5, -10, -5, -10, 0, -20)
+  if (boost) {
+    let wiggle = 0
+    if (frameCount % 10 > 5) wiggle += 5
+    fill(200, 50, 50)
+    triangle(13, 20, -13, 20, 0, 50 + wiggle)
+    fill(150, 150, 50)
+    triangle(8, 20, -8, 20, 0, 35 + wiggle)
+    fill(50, 50, 150)
+    triangle(3, 20, -3, 20, 0, 25 + wiggle)
+  }
+  pop()
+}
+
+function moveShip() {
+  if (right) dir += 5
+  if (left) dir -= 5
+  if (boost) {
+    xSpeed += speed * sin(dir)
+    ySpeed += -speed * cos(dir)
+  } else {
+    xSpeed -= xSpeed * drag
+    ySpeed -= ySpeed * drag
+  }
+  shipX += xSpeed
+  shipY += ySpeed
+  if (shipX < 0) shipX = windowWidth
+  if (shipX > windowWidth) shipX = 0
+  if (shipY < 0) shipY = windowHeight
+  if (shipY > windowHeight) shipY = 0
+
+  right = false
+  left = false
+}
+
+function drawRock() {
+  for (let i = 0; i < rockCount; i++) {
+    fill(100, 120, 88)
+    circle(rockX[i], rockY[i], rockSize[i])
+  }
+}
+
+function rockRegen(num) {
+  if (rockSize[num] < 10) {
+    rockSize[num] = round(random(3, 10) * 10)
+    rockX[num] = random(windowWidth)
+    rockY[num] = random(windowHeight)
+    rockXSpeed[num] = round(random(-5, 5))
+    rockYSpeed[num] = round(random(-5, 5))
+  }
+}
+
+function moveRock() {
+  for (let i = 0; i < rockCount; i++) {
+    rockX[i] += rockXSpeed[i]
+    rockY[i] += rockYSpeed[i]
+    if (rockX[i] < 0) {
+      rockX[i] = windowWidth
+      rockRegen(i)
+    }
+    if (rockX[i] > windowWidth) {
+      rockX[i] = 0
+      rockRegen(i)
+    }
+    if (rockY[i] < 0) {
+      rockY[i] = windowHeight
+      rockRegen(i)
+    }
+    if (rockY[i] > windowHeight) {
+      rockY[i] = 0
+      rockRegen(i)
+    }
+  }
+}
+
+function hitRock() {
+  if (iFrames > 0) return
+  for (let i = 0; i < rockCount; i++) {
+    if (rockSize[i] > 10) {
+      let dx = shipX - rockX[i]
+      let dy = shipY - rockY[i]
+      let dist = sqrt(dx * dx + dy * dy)
+      if (dist < (30 + rockSize[i]) / 2) {
+        lives--
+        if (lives < 1 && gameOver == 0) {
+          gameOver = 100
+        }
+        iFrames = 100
+        xSpeed = -xSpeed
+        ySpeed = -ySpeed
+        shipX = windowWidth / 2
+        shipY = windowHeight / 2
+      }
+    }
+  }
+  if (iFrames > 0) iFrames--
+}
+
+function laserHit() {
+  for (let i = 0; i < laserNum; i++) {
+    if (laserVis[i]) {
+      for (let j = 0; j < rockCount; j++) {
+        if (rockSize[j] > 0) {
+          let dx = laserX[i] - rockX[j]
+          let dy = laserY[i] - rockY[j]
+          let dist = sqrt(dx * dx + dy * dy)
+          if (dist < (10 + rockSize[j]) / 2) {
+            laserVis[i] = false
+            rockSize[j] -= 10
+            score += floor(random(5, 100))
+            rockRegen(j)
+          }
+        }
+      }
+    }
+  }
+}
+
+function reset() {
+  lives = 3
+  iFrames = 0
+  for (let i = 0; i < laserNum; i++) {
+    laserVis[i] = false
+    laserX[i] = -100
+    laserY[i] = -100
+    laserTime[i] = 0
+  }
+  xSpeed = 0
+  ySpeed = 0
+  shipX = windowWidth / 2
+  shipY = windowHeight / 2
+  score = 0
+  for (let i = 0; i < rockCount; i++) {
+    rockSize[i] = round(random(3, 10) * 10)
+    rockX[i] = random(windowWidth)
+    rockY[i] = random(windowHeight)
+  }
+}
+
+function drawHUD() {
+  for (let i = 0; i < lives; i++) {
+    push()
+    translate(30 + (i * 40), 30)
+    scale(0.6)
+    fill(100, 150, 200)
+    triangle(20, 20, -20, 20, 0, -20)
+    fill(255, 0, 0)
+    triangle(5, -10, -5, -10, 0, -20)
+    pop()
+  }
+
+  fill(255)
+  textSize(20)
+  textAlign(CENTER)
+  text("Score: " + score, windowWidth / 2, 40)
+
+  textAlign(LEFT)
+  text("CD: " + cooldown, 10, 50)
+}
+
+function utility() {
+  FPS = round(frameRate())
+  fill(255)
+  textSize(16)
+  text("FPS: " + FPS, 10, 20)
+}
+
+// ======================================= THE END ============================================ //
