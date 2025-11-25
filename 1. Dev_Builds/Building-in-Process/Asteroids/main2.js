@@ -1,4 +1,4 @@
-// ================================== Asteroids Game (derived + extended) ====================================== //
+// ================================== Asteroids Game ====================================== //
 
 // -------------------------------- START OF VARIABLES ----------------------------------- //
 
@@ -14,7 +14,7 @@ let rockY = [400, 800, 200, 600, 100]
 let rockSize = [50, 30, 80, 70, 20]
 let rockXSpeed = [3, -1, 5, -4, 2]
 let rockYSpeed = [4, 2, -3, 5, 3]
-let rockCount = rockX.length
+let rockCount = 5
 
 // Lasers 
 let laserNum = 5
